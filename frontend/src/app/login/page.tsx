@@ -18,20 +18,30 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setError(error.message);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      // Use a server-side redirect via location.assign so the next request
+      // carries the freshly-set session cookie. router.push relies on a
+      // client-side fetch to /student that can race the cookie write.
+      window.location.assign("/student");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed");
+    } finally {
+      // Loading state would normally clear when the page unmounts on
+      // navigation; clear it explicitly so a hung redirect doesn't leave
+      // the button stuck at "Signing in...".
       setLoading(false);
-      return;
     }
-
-    router.push("/student");
-    router.refresh();
   }
 
   return (
