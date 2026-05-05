@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { type Role, ROLE_LABELS, ROLE_ROUTES } from "@/lib/auth/permissions";
+import { createClient } from "@/lib/auth/supabase-client";
 
 interface TopbarProps {
   userName: string;
+  email: string;
   roles: Role[];
 }
 
@@ -18,7 +21,7 @@ const REPORTS_ROLES: ReadonlySet<Role> = new Set([
   "hod",
 ]);
 
-export function Topbar({ userName, roles }: TopbarProps) {
+export function Topbar({ userName, email, roles }: TopbarProps) {
   const pathname = usePathname();
 
   function isActiveRole(role: Role): boolean {
@@ -27,6 +30,40 @@ export function Topbar({ userName, roles }: TopbarProps) {
 
   const showReports = roles.some((r) => REPORTS_ROLES.has(r));
   const reportsActive = pathname.startsWith("/reports");
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [menuOpen]);
+
+  function handleSignOut() {
+    setSigningOut(true);
+    const supabase = createClient();
+    supabase.auth
+      .signOut()
+      .catch((err) => console.error("sign-out failed:", err))
+      .finally(() => {
+        // Hard navigation so the next request leaves with no session cookie.
+        window.location.assign("/login");
+      });
+  }
+
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-[20px] bg-white/45 border-b border-white/60">
@@ -69,14 +106,44 @@ export function Topbar({ userName, roles }: TopbarProps) {
           )}
         </nav>
 
-        <div className="flex items-center gap-2 ml-4">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-pink grid place-items-center text-white text-[11px] font-bold">
-            {userName
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .slice(0, 2)}
-          </div>
+        <div ref={menuRef} className="relative ml-4">
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="w-9 h-9 rounded-full bg-gradient-to-br from-accent to-pink grid place-items-center text-white text-[11px] font-bold cursor-pointer hover:shadow-[0_4px_14px_rgba(109,76,255,0.3)] transition-shadow"
+            aria-label="User menu"
+          >
+            {initials}
+          </button>
+
+          {menuOpen && (
+            <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white/85 border border-white/70 backdrop-blur-[20px] shadow-[0_14px_40px_rgba(28,32,82,0.12)] overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/70">
+                <div className="text-sm font-semibold text-ink truncate">
+                  {userName}
+                </div>
+                <div className="text-[11px] text-muted truncate">{email}</div>
+                {roles.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {roles.map((r) => (
+                      <span
+                        key={r}
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-accent/12 text-accent border border-accent/20"
+                      >
+                        {ROLE_LABELS[r]}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="w-full text-left px-4 py-2.5 text-sm font-semibold text-ink-2 hover:bg-white/60 cursor-pointer disabled:opacity-50"
+              >
+                {signingOut ? "Signing out..." : "Sign out"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

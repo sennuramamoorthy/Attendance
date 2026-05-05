@@ -98,6 +98,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen">
       <Topbar
         userName={me.full_name ?? me.email ?? "User"}
+        email={me.email}
         roles={me.roles}
       />
       <main className="max-w-[1480px] mx-auto px-6 py-8 pb-20">
