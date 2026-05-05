@@ -18,16 +18,28 @@ export async function serverApi<T>(
 
   if (!session) return null;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-      ...options.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    console.error(`[serverApi] fetch failed: ${API_BASE_URL}${path}`, err);
+    return null;
+  }
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    // Log so the cause of a "not found" UI is recoverable from logs.
+    console.error(
+      `[serverApi] ${response.status} ${response.statusText} for ${path}`
+    );
+    return null;
+  }
   return response.json();
 }
