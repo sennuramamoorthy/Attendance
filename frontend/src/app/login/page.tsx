@@ -28,10 +28,11 @@ export default function LoginPage() {
         return;
       }
 
-      // Use a server-side redirect via location.assign so the next request
-      // carries the freshly-set session cookie. router.push relies on a
-      // client-side fetch to /student that can race the cookie write.
-      window.location.assign("/student");
+      // Hard navigation to "/" — the root page calls /api/me and routes
+      // to the user's role-appropriate landing (e.g. /admin, /executive,
+      // /student). Using location.assign instead of router.push so the
+      // next request carries the freshly-set session cookie.
+      window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
     } finally {
