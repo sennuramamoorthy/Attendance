@@ -181,3 +181,46 @@ export interface StudentRow {
   admitted_year: number;
   phone: string | null;
 }
+
+export interface VcSchoolStanding {
+  code: string;
+  name: string;
+  percentage: number | null;
+  color: string;
+  min_pct: number;
+}
+
+export interface VcTrendLine {
+  code: string;
+  name: string;
+  color: string;
+  values: number[];
+}
+
+export interface VcComplianceFlag {
+  code: string;
+  severity: "critical" | "warning";
+  message: string;
+  owner: string;
+  action: string;
+}
+
+export interface VcAgendaItem {
+  title: string;
+  subtitle: string;
+  status: "pending" | "approved" | "draft";
+}
+
+export interface VcOverview {
+  attendance_ytd: number;
+  attendance_ytd_yoy_delta: number;
+  faculty_compliance_pct: number;
+  faculty_compliance_target: number;
+  at_risk_count: number;
+  at_risk_wow_delta: number;
+  schools_league: VcSchoolStanding[];
+  trend: { weeks: string[]; lines: VcTrendLine[] };
+  compliance_flags: VcComplianceFlag[];
+  compliance_critical_count: number;
+  council_agenda: VcAgendaItem[];
+}
