@@ -8,62 +8,18 @@ Usage: python scripts/seed_admin.py <email> <password>
 """
 
 import asyncio
-import os
 import sys
-from uuid import UUID
 
-import httpx
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.user import User, UserRole
-
-GOTRUE_URL = os.environ.get("GOTRUE_URL", "http://localhost:9999")
-SERVICE_KEY = os.environ.get(
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0."
-    "EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU",
-)
-
-
-async def upsert_auth_user(email: str, password: str) -> str:
-    """Create the user in gotrue, or update password if it already exists. Returns UUID."""
-    headers = {"Authorization": f"Bearer {SERVICE_KEY}"}
-
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            f"{GOTRUE_URL}/admin/users",
-            json={"email": email, "password": password, "email_confirm": True},
-            headers=headers,
-        )
-        if resp.status_code in (200, 201):
-            return resp.json()["id"]
-
-        if resp.status_code in (409, 422):
-            # Already exists — find the user and update password
-            search = await client.get(f"{GOTRUE_URL}/admin/users", headers=headers)
-            search.raise_for_status()
-            users = search.json().get("users", [])
-            match = next((u for u in users if u.get("email") == email), None)
-            if not match:
-                raise RuntimeError(f"User {email} reported as existing but not found in admin list")
-            user_id = match["id"]
-            update = await client.put(
-                f"{GOTRUE_URL}/admin/users/{user_id}",
-                json={"password": password},
-                headers=headers,
-            )
-            update.raise_for_status()
-            return user_id
-
-        raise RuntimeError(f"gotrue returned {resp.status_code}: {resp.text}")
+from app.services.gotrue_admin import upsert_auth_user
 
 
 async def main(email: str, password: str) -> None:
     print(f"→ Creating gotrue user for {email}")
-    user_id_str = await upsert_auth_user(email, password)
-    user_id = UUID(user_id_str)
+    user_id = await upsert_auth_user(email, password)
     print(f"→ Auth user: {user_id}")
 
     async with AsyncSessionLocal() as db:

@@ -12,9 +12,12 @@ from app.models.user import User, UserRole
 
 
 class CurrentUser:
-    def __init__(self, user_id: UUID, email: str, roles: list[UserRole]):
+    def __init__(
+        self, user_id: UUID, email: str, full_name: str | None, roles: list[UserRole]
+    ):
         self.id = user_id
         self.email = email
+        self.full_name = full_name
         self.roles = roles
 
     def has_role(self, role: str, scope_id: UUID | None = None) -> bool:
@@ -72,7 +75,7 @@ async def get_current_user(
     roles_result = await db.execute(select(UserRole).where(UserRole.user_id == user_id))
     roles = list(roles_result.scalars().all())
 
-    return CurrentUser(user_id=user.id, email=user.email, roles=roles)
+    return CurrentUser(user_id=user.id, email=user.email, full_name=user.full_name, roles=roles)
 
 
 def require_role(*allowed_roles: str):
