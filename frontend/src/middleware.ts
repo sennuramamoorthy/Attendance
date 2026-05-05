@@ -4,8 +4,14 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // Server-side fetches must use the in-network URL when running in Docker
+  // (NEXT_PUBLIC_SUPABASE_URL is the browser-facing URL; inside the container
+  // `localhost:8000` loops back to the container itself, not Kong).
+  const supabaseUrl =
+    process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {

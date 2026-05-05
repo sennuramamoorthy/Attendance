@@ -16,7 +16,10 @@ type FetchResult =
   | { kind: "error"; status: number }
   | { kind: "unreachable" };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
+const API_BASE_URL =
+  process.env.API_INTERNAL_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8001";
 
 async function fetchMe(token: string): Promise<FetchResult> {
   try {

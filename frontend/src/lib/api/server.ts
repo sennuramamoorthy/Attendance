@@ -1,6 +1,11 @@
 import { createServerSupabaseClient } from "@/lib/auth/supabase-server";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
+// Inside Docker, server-side fetches need the in-network URL (e.g. `http://backend:8001`).
+// In local dev, falls back to the browser-facing URL.
+const API_BASE_URL =
+  process.env.API_INTERNAL_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8001";
 
 export async function serverApi<T>(
   path: string,
