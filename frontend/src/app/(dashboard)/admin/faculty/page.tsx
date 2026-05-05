@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { adminApi } from "@/lib/api";
@@ -10,6 +11,7 @@ import { BulkUploadCard } from "@/components/admin/bulk-upload-card";
 import { Modal } from "@/components/ui/modal";
 
 export default function AdminFacultyPage() {
+  const router = useRouter();
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
@@ -157,14 +159,21 @@ export default function AdminFacultyPage() {
               </thead>
               <tbody>
                 {faculty.map((f) => (
-                  <tr key={f.id}>
+                  <tr
+                    key={f.id}
+                    onClick={() => router.push(`/admin/faculty/${f.id}`)}
+                    className="cursor-pointer hover:bg-white/40 transition-colors"
+                  >
                     <td className="px-4 py-3 border-t border-[var(--line-2)] font-mono text-xs">{f.employee_id}</td>
                     <td className="px-4 py-3 border-t border-[var(--line-2)] font-semibold">{f.full_name}</td>
                     <td className="px-4 py-3 border-t border-[var(--line-2)] text-muted">{f.email}</td>
                     <td className="px-4 py-3 border-t border-[var(--line-2)]">
                       {schoolByDept(f.department_id)} · {deptName(f.department_id)}
                     </td>
-                    <td className="px-4 py-3 border-t border-[var(--line-2)] text-right whitespace-nowrap">
+                    <td
+                      className="px-4 py-3 border-t border-[var(--line-2)] text-right whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button onClick={() => setEditing(f)} className="text-xs text-muted hover:text-accent mr-3">
                         ✎ Edit
                       </button>

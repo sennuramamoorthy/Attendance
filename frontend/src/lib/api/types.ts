@@ -256,6 +256,51 @@ export interface AdminStudentDetail {
   }>;
 }
 
+export interface AdminFacultyDetail {
+  faculty: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string | null;
+    employee_id: string;
+  };
+  department: { code: string; name: string };
+  school: { code: string; name: string; min_attendance_pct: number };
+  summary: {
+    assignments_count: number;
+    sessions_held: number;
+    avg_attendance_pct: number | null;
+  };
+  assignments: Array<{
+    id: string;
+    subject_code: string;
+    subject_name: string;
+    subject_type: string;
+    credits: number;
+    section_label: string;
+    section_year: number;
+    section_division: string;
+    program_name: string;
+    academic_year: number;
+    term: number;
+    section_size: number;
+    sessions_held: number;
+    average_attendance_pct: number | null;
+  }>;
+  today_schedule: Array<{
+    schedule_id: string;
+    assignment_id: string;
+    start_time: string;
+    end_time: string;
+    room: string;
+    subject_code: string;
+    subject_name: string;
+    section_label: string;
+    session_status: string | null;
+    present_count: number;
+  }>;
+}
+
 export interface VcOverview {
   attendance_ytd: number;
   attendance_ytd_yoy_delta: number;

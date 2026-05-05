@@ -419,6 +419,277 @@ async def get_student_detail(
     }
 
 
+@router.get("/faculty/{faculty_id}/detail")
+async def get_faculty_detail(
+    faculty_id: UUID,
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Detailed view of a faculty member — for admin / registrar / dean / hod.
+
+    Bundles profile + org context, current assignments with attendance %,
+    today's schedule with live/closed session status, and aggregate
+    metrics (sessions held, avg attendance across classes).
+    """
+    from datetime import date
+
+    from sqlalchemy import and_, func
+
+    from app.models.academic import (
+        ClassSchedule,
+        Department,
+        Program,
+        School,
+        Section,
+        Subject,
+        SubjectAssignment,
+    )
+    from app.models.attendance import AttendanceRecord, AttendanceSession
+    from app.models.user import FacultyMember, Student
+
+    if not current_user.role_names().intersection(
+        {"admin", "registrar", "dean", "hod"}
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Admin / Registrar / Dean / HOD role required",
+        )
+
+    # 1. Faculty + user + org context
+    row = (
+        await db.execute(
+            select(FacultyMember, User, Department, School)
+            .join(User, FacultyMember.user_id == User.id)
+            .join(Department, FacultyMember.department_id == Department.id)
+            .join(School, Department.school_id == School.id)
+            .where(FacultyMember.id == faculty_id)
+        )
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Faculty not found")
+    fac, user, department, school = row
+
+    # 2. All assignments + program/section context
+    assignment_rows = (
+        await db.execute(
+            select(
+                SubjectAssignment.id,
+                Subject.code,
+                Subject.name,
+                Subject.credits,
+                Subject.type,
+                Section.id,
+                Section.year,
+                Section.division,
+                Program.code,
+                Program.name,
+                SubjectAssignment.academic_year,
+                SubjectAssignment.term,
+            )
+            .join(Subject, SubjectAssignment.subject_id == Subject.id)
+            .join(Section, SubjectAssignment.section_id == Section.id)
+            .join(Program, Section.program_id == Program.id)
+            .where(SubjectAssignment.faculty_id == faculty_id)
+            .order_by(Subject.code)
+        )
+    ).all()
+
+    assignments_payload = []
+    total_sessions_all = 0
+    weighted_pct_sum = 0.0
+    weighted_total_sum = 0
+    for (
+        aid,
+        s_code,
+        s_name,
+        credits,
+        s_type,
+        sec_id,
+        year,
+        division,
+        prog_code,
+        prog_name,
+        academic_year,
+        term,
+    ) in assignment_rows:
+        # Sessions held under this assignment
+        sessions_held = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceSession)
+                .where(AttendanceSession.subject_assignment_id == aid)
+            )
+        ).scalar_one()
+        total_sessions_all += sessions_held
+
+        # Section size (denominator for attendance rate)
+        section_size = (
+            await db.execute(
+                select(func.count())
+                .select_from(Student)
+                .where(Student.section_id == sec_id)
+            )
+        ).scalar_one()
+
+        # Total attendance records & present count for this assignment
+        total = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceRecord)
+                .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+                .where(AttendanceSession.subject_assignment_id == aid)
+            )
+        ).scalar_one()
+        present = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceRecord)
+                .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+                .where(
+                    and_(
+                        AttendanceSession.subject_assignment_id == aid,
+                        AttendanceRecord.status == "present",
+                    )
+                )
+            )
+        ).scalar_one()
+        pct = (present / total * 100) if total > 0 else None
+        if pct is not None:
+            weighted_pct_sum += pct * total
+            weighted_total_sum += total
+
+        assignments_payload.append(
+            {
+                "id": str(aid),
+                "subject_code": s_code,
+                "subject_name": s_name,
+                "subject_type": s_type,
+                "credits": credits,
+                "section_label": f"{prog_code} · Y{year} {division}",
+                "section_year": year,
+                "section_division": division,
+                "program_name": prog_name,
+                "academic_year": academic_year,
+                "term": term,
+                "section_size": section_size,
+                "sessions_held": sessions_held,
+                "average_attendance_pct": (
+                    round(pct, 1) if pct is not None else None
+                ),
+            }
+        )
+
+    avg_attendance = (
+        round(weighted_pct_sum / weighted_total_sum, 1)
+        if weighted_total_sum > 0
+        else None
+    )
+
+    # 3. Today's schedule with session status
+    today = date.today()
+    py_dow = today.weekday()
+    schedule_rows = (
+        await db.execute(
+            select(
+                ClassSchedule.id,
+                ClassSchedule.start_time,
+                ClassSchedule.end_time,
+                ClassSchedule.room,
+                Subject.code,
+                Subject.name,
+                SubjectAssignment.id,
+                Section.year,
+                Section.division,
+                Program.code,
+            )
+            .join(SubjectAssignment, ClassSchedule.subject_assignment_id == SubjectAssignment.id)
+            .join(Subject, SubjectAssignment.subject_id == Subject.id)
+            .join(Section, SubjectAssignment.section_id == Section.id)
+            .join(Program, Section.program_id == Program.id)
+            .where(
+                and_(
+                    SubjectAssignment.faculty_id == faculty_id,
+                    ClassSchedule.day_of_week == py_dow,
+                )
+            )
+            .order_by(ClassSchedule.start_time)
+        )
+    ).all()
+
+    todays_sessions = (
+        await db.execute(
+            select(AttendanceSession).where(AttendanceSession.session_date == today)
+        )
+    ).scalars().all()
+    session_by_assignment = {s.subject_assignment_id: s for s in todays_sessions}
+
+    schedule_payload = []
+    for (
+        sched_id,
+        start,
+        end,
+        room,
+        s_code,
+        s_name,
+        assignment_id,
+        year,
+        division,
+        prog_code,
+    ) in schedule_rows:
+        session = session_by_assignment.get(assignment_id)
+        present_count = 0
+        if session:
+            present_count = (
+                await db.execute(
+                    select(func.count())
+                    .select_from(AttendanceRecord)
+                    .where(
+                        and_(
+                            AttendanceRecord.session_id == session.id,
+                            AttendanceRecord.status == "present",
+                        )
+                    )
+                )
+            ).scalar_one()
+        schedule_payload.append(
+            {
+                "schedule_id": str(sched_id),
+                "assignment_id": str(assignment_id),
+                "start_time": start.isoformat(timespec="minutes"),
+                "end_time": end.isoformat(timespec="minutes"),
+                "room": room,
+                "subject_code": s_code,
+                "subject_name": s_name,
+                "section_label": f"{prog_code} · Y{year} {division}",
+                "session_status": session.status if session else None,
+                "present_count": present_count,
+            }
+        )
+
+    return {
+        "faculty": {
+            "id": str(fac.id),
+            "full_name": user.full_name,
+            "email": user.email,
+            "phone": user.phone,
+            "employee_id": fac.employee_id,
+        },
+        "department": {"code": department.code, "name": department.name},
+        "school": {
+            "code": school.code,
+            "name": school.name,
+            "min_attendance_pct": school.min_attendance_pct,
+        },
+        "summary": {
+            "assignments_count": len(assignments_payload),
+            "sessions_held": total_sessions_all,
+            "avg_attendance_pct": avg_attendance,
+        },
+        "assignments": assignments_payload,
+        "today_schedule": schedule_payload,
+    }
+
+
 @router.get("/assignments", response_model=list[AssignmentOut])
 async def list_assignments(
     db: Annotated[AsyncSession, Depends(get_db)],
