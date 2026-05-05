@@ -211,6 +211,51 @@ export interface VcAgendaItem {
   status: "pending" | "approved" | "draft";
 }
 
+export interface AdminStudentDetail {
+  student: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string | null;
+    enrollment_no: string;
+    admitted_year: number;
+    device_bound: boolean;
+  };
+  section: { year: number; division: string };
+  program: { code: string; name: string };
+  department: { code: string; name: string };
+  school: { code: string; name: string; min_attendance_pct: number };
+  attendance: {
+    overall_percentage: number;
+    total: number;
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    below_threshold: boolean;
+  };
+  per_subject: Array<{
+    subject_code: string;
+    subject_name: string;
+    faculty_name: string;
+    total: number;
+    present: number;
+    percentage: number | null;
+  }>;
+  today_schedule: Array<{
+    schedule_id: string;
+    assignment_id: string;
+    start_time: string;
+    end_time: string;
+    room: string;
+    subject_code: string;
+    subject_name: string;
+    faculty_name: string;
+    session_status: string | null;
+    is_marked: boolean;
+  }>;
+}
+
 export interface VcOverview {
   attendance_ytd: number;
   attendance_ytd_yoy_delta: number;

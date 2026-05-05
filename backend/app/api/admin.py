@@ -187,6 +187,238 @@ async def list_students(db: Annotated[AsyncSession, Depends(get_db)]) -> list[St
     ]
 
 
+@router.get("/students/{student_id}/detail")
+async def get_student_detail(
+    student_id: UUID,
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Detailed dashboard view of a single student — for admin / registrar.
+
+    Bundles the same shape the student sees in their own dashboard
+    (attendance %, schedule) plus org context (school, program, dept) and a
+    per-subject breakdown so the admin can spot which subjects are dragging.
+    """
+    from datetime import date
+
+    from sqlalchemy import and_, func
+
+    from app.models.academic import (
+        ClassSchedule,
+        Department,
+        Program,
+        School,
+        Section,
+        Subject,
+        SubjectAssignment,
+    )
+    from app.models.attendance import AttendanceRecord, AttendanceSession
+    from app.models.user import FacultyMember, Student
+
+    if not current_user.role_names().intersection({"admin", "registrar"}):
+        raise HTTPException(
+            status_code=403, detail="Admin or Registrar role required"
+        )
+
+    # 1. Student + org context in one query
+    row = (
+        await db.execute(
+            select(
+                Student,
+                User,
+                Section,
+                Program,
+                Department,
+                School,
+            )
+            .join(User, Student.user_id == User.id)
+            .join(Section, Student.section_id == Section.id)
+            .join(Program, Section.program_id == Program.id)
+            .join(Department, Program.department_id == Department.id)
+            .join(School, Department.school_id == School.id)
+            .where(Student.id == student_id)
+        )
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Student not found")
+    stu, user, section, program, department, school = row
+
+    # 2. Overall attendance numbers
+    by_status_rows = (
+        await db.execute(
+            select(AttendanceRecord.status, func.count())
+            .where(AttendanceRecord.student_id == student_id)
+            .group_by(AttendanceRecord.status)
+        )
+    ).all()
+    counts = dict(by_status_rows)
+    present = counts.get("present", 0)
+    late = counts.get("late", 0)
+    absent = counts.get("absent", 0)
+    excused = counts.get("excused", 0)
+    total = present + late + absent + excused
+    overall_pct = (present / total * 100) if total > 0 else 0.0
+    below_threshold = total > 0 and overall_pct < school.min_attendance_pct
+
+    # 3. Per-subject breakdown
+    per_subject_rows = (
+        await db.execute(
+            select(
+                Subject.code,
+                Subject.name,
+                User.full_name,  # faculty name
+                AttendanceSession.subject_assignment_id,
+            )
+            .select_from(AttendanceRecord)
+            .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+            .join(SubjectAssignment, AttendanceSession.subject_assignment_id == SubjectAssignment.id)
+            .join(Subject, SubjectAssignment.subject_id == Subject.id)
+            .join(FacultyMember, SubjectAssignment.faculty_id == FacultyMember.id)
+            .join(User, FacultyMember.user_id == User.id)
+            .where(AttendanceRecord.student_id == student_id)
+            .distinct()
+        )
+    ).all()
+
+    per_subject = []
+    for code, sub_name, faculty_name, assignment_id in per_subject_rows:
+        sub_total = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceRecord)
+                .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+                .where(
+                    and_(
+                        AttendanceRecord.student_id == student_id,
+                        AttendanceSession.subject_assignment_id == assignment_id,
+                    )
+                )
+            )
+        ).scalar_one()
+        sub_present = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceRecord)
+                .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+                .where(
+                    and_(
+                        AttendanceRecord.student_id == student_id,
+                        AttendanceSession.subject_assignment_id == assignment_id,
+                        AttendanceRecord.status == "present",
+                    )
+                )
+            )
+        ).scalar_one()
+        per_subject.append(
+            {
+                "subject_code": code,
+                "subject_name": sub_name,
+                "faculty_name": faculty_name,
+                "total": sub_total,
+                "present": sub_present,
+                "percentage": round(sub_present / sub_total * 100, 1)
+                if sub_total > 0
+                else None,
+            }
+        )
+
+    per_subject.sort(key=lambda x: (x["percentage"] is None, x["percentage"] or 0))
+
+    # 4. Today's schedule with per-class status (if a session exists)
+    today = date.today()
+    py_dow = today.weekday()
+    schedule_rows = (
+        await db.execute(
+            select(
+                ClassSchedule.id,
+                ClassSchedule.start_time,
+                ClassSchedule.end_time,
+                ClassSchedule.room,
+                Subject.code,
+                Subject.name,
+                User.full_name,
+                SubjectAssignment.id,
+            )
+            .join(SubjectAssignment, ClassSchedule.subject_assignment_id == SubjectAssignment.id)
+            .join(Subject, SubjectAssignment.subject_id == Subject.id)
+            .join(FacultyMember, SubjectAssignment.faculty_id == FacultyMember.id)
+            .join(User, FacultyMember.user_id == User.id)
+            .where(
+                and_(
+                    SubjectAssignment.section_id == stu.section_id,
+                    ClassSchedule.day_of_week == py_dow,
+                )
+            )
+            .order_by(ClassSchedule.start_time)
+        )
+    ).all()
+
+    todays_sessions = (
+        await db.execute(
+            select(AttendanceSession).where(AttendanceSession.session_date == today)
+        )
+    ).scalars().all()
+    session_by_assignment = {s.subject_assignment_id: s for s in todays_sessions}
+
+    my_records = (
+        await db.execute(
+            select(AttendanceRecord.session_id).where(
+                AttendanceRecord.student_id == student_id
+            )
+        )
+    ).scalars().all()
+    marked_session_ids = set(my_records)
+
+    schedule = []
+    for sched_id, start, end, room, code, sub_name, faculty_name, assignment_id in schedule_rows:
+        session = session_by_assignment.get(assignment_id)
+        schedule.append(
+            {
+                "schedule_id": str(sched_id),
+                "assignment_id": str(assignment_id),
+                "start_time": start.isoformat(timespec="minutes"),
+                "end_time": end.isoformat(timespec="minutes"),
+                "room": room,
+                "subject_code": code,
+                "subject_name": sub_name,
+                "faculty_name": faculty_name,
+                "session_status": session.status if session else None,
+                "is_marked": session is not None and session.id in marked_session_ids,
+            }
+        )
+
+    return {
+        "student": {
+            "id": str(stu.id),
+            "full_name": user.full_name,
+            "email": user.email,
+            "phone": user.phone,
+            "enrollment_no": stu.enrollment_no,
+            "admitted_year": stu.admitted_year,
+            "device_bound": bool(stu.device_fingerprint),
+        },
+        "section": {"year": section.year, "division": section.division},
+        "program": {"code": program.code, "name": program.name},
+        "department": {"code": department.code, "name": department.name},
+        "school": {
+            "code": school.code,
+            "name": school.name,
+            "min_attendance_pct": school.min_attendance_pct,
+        },
+        "attendance": {
+            "overall_percentage": round(overall_pct, 1),
+            "total": total,
+            "present": present,
+            "late": late,
+            "absent": absent,
+            "excused": excused,
+            "below_threshold": below_threshold,
+        },
+        "per_subject": per_subject,
+        "today_schedule": schedule,
+    }
+
+
 @router.get("/assignments", response_model=list[AssignmentOut])
 async def list_assignments(
     db: Annotated[AsyncSession, Depends(get_db)],

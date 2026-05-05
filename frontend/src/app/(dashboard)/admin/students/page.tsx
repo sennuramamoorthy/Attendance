@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -10,6 +11,7 @@ import { ApiError } from "@/lib/api/client";
 import { BulkUploadCard } from "@/components/admin/bulk-upload-card";
 
 export default function AdminStudentsPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -112,13 +114,20 @@ export default function AdminStudentsPage() {
               </thead>
               <tbody>
                 {filtered.map((s) => (
-                  <tr key={s.id}>
+                  <tr
+                    key={s.id}
+                    onClick={() => router.push(`/admin/students/${s.id}`)}
+                    className="cursor-pointer hover:bg-white/40 transition-colors"
+                  >
                     <td className="px-4 py-3 border-t border-[var(--line-2)] font-mono text-xs">{s.enrollment_no}</td>
                     <td className="px-4 py-3 border-t border-[var(--line-2)] font-semibold">{s.full_name}</td>
                     <td className="px-4 py-3 border-t border-[var(--line-2)] text-muted">{s.email}</td>
                     <td className="px-4 py-3 border-t border-[var(--line-2)]">{sectionLabel(s.section_id)}</td>
                     <td className="px-4 py-3 border-t border-[var(--line-2)] text-xs">{s.admitted_year}</td>
-                    <td className="px-4 py-3 border-t border-[var(--line-2)] text-right whitespace-nowrap">
+                    <td
+                      className="px-4 py-3 border-t border-[var(--line-2)] text-right whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button onClick={() => setEditing(s)} className="text-xs text-muted hover:text-accent mr-3">
                         ✎ Edit
                       </button>
