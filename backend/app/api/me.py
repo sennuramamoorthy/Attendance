@@ -22,5 +22,6 @@ async def get_me(
     return MeResponse(
         id=str(current_user.id),
         email=current_user.email,
+        full_name=current_user.full_name,
         roles=sorted(current_user.role_names()),
     )

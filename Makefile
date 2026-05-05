@@ -112,6 +112,10 @@ seed-admin: supabase-up migrate ## Create an admin login (usage: make seed-admin
 	fi
 	@cd $(BACKEND) && PYTHONPATH=. .venv/bin/python scripts/seed_admin.py "$(EMAIL)" "$(PASSWORD)"
 
+.PHONY: seed-demo
+seed-demo: supabase-up migrate seed ## Populate demo users for every role + students + attendance history
+	@cd $(BACKEND) && PYTHONPATH=. .venv/bin/python scripts/seed_demo.py
+
 .PHONY: db-shell
 db-shell: ## Open a psql shell to the dev database
 	@docker exec -it attendance-db-1 psql -U postgres -d attendance
