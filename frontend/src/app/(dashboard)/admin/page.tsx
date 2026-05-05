@@ -42,6 +42,12 @@ const adminModules = [
     href: "/admin/sections",
     icon: "🏫",
   },
+  {
+    title: "Reports",
+    description: "Drill-down explorer (school → student) + at-risk + CSV export",
+    href: "/reports",
+    icon: "📊",
+  },
 ];
 
 export default async function AdminDashboard() {

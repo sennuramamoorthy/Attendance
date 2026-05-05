@@ -9,12 +9,24 @@ interface TopbarProps {
   roles: Role[];
 }
 
+const REPORTS_ROLES: ReadonlySet<Role> = new Set([
+  "admin",
+  "registrar",
+  "vc",
+  "chancellor",
+  "dean",
+  "hod",
+]);
+
 export function Topbar({ userName, roles }: TopbarProps) {
   const pathname = usePathname();
 
   function isActiveRole(role: Role): boolean {
     return pathname.startsWith(ROLE_ROUTES[role]);
   }
+
+  const showReports = roles.some((r) => REPORTS_ROLES.has(r));
+  const reportsActive = pathname.startsWith("/reports");
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-[20px] bg-white/45 border-b border-white/60">
@@ -35,7 +47,7 @@ export function Topbar({ userName, roles }: TopbarProps) {
               key={role}
               href={ROLE_ROUTES[role]}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-all ${
-                isActiveRole(role)
+                isActiveRole(role) && !reportsActive
                   ? "bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_6px_18px_rgba(109,76,255,0.3)]"
                   : "text-ink-2 hover:bg-white/60"
               }`}
@@ -43,6 +55,18 @@ export function Topbar({ userName, roles }: TopbarProps) {
               {ROLE_LABELS[role]}
             </Link>
           ))}
+          {showReports && (
+            <Link
+              href="/reports"
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-all ${
+                reportsActive
+                  ? "bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_6px_18px_rgba(109,76,255,0.3)]"
+                  : "text-ink-2 hover:bg-white/60"
+              }`}
+            >
+              Reports
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-2 ml-4">
