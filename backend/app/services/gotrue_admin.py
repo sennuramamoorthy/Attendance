@@ -19,9 +19,31 @@ SERVICE_KEY = os.environ.get(
 HEADERS = {"Authorization": f"Bearer {SERVICE_KEY}"}
 
 
+async def _find_user_by_email(client: httpx.AsyncClient, email: str) -> dict | None:
+    """Page through gotrue admin/users until we find the email, or exhaust."""
+    page = 1
+    per_page = 200
+    while True:
+        resp = await client.get(
+            f"{GOTRUE_URL}/admin/users",
+            params={"page": page, "per_page": per_page},
+            headers=HEADERS,
+        )
+        resp.raise_for_status()
+        users = resp.json().get("users", [])
+        if not users:
+            return None
+        for u in users:
+            if u.get("email") == email:
+                return u
+        if len(users) < per_page:
+            return None
+        page += 1
+
+
 async def upsert_auth_user(email: str, password: str) -> UUID:
     """Create the user in gotrue, or update password if it already exists. Returns UUID."""
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
             f"{GOTRUE_URL}/admin/users",
             json={"email": email, "password": password, "email_confirm": True},
@@ -31,11 +53,7 @@ async def upsert_auth_user(email: str, password: str) -> UUID:
             return UUID(resp.json()["id"])
 
         if resp.status_code in (409, 422):
-            # Already exists — find user by email and update password
-            search = await client.get(f"{GOTRUE_URL}/admin/users", headers=HEADERS)
-            search.raise_for_status()
-            users = search.json().get("users", [])
-            match = next((u for u in users if u.get("email") == email), None)
+            match = await _find_user_by_email(client, email)
             if not match:
                 raise RuntimeError(
                     f"User {email} reported as existing but not found in admin list"

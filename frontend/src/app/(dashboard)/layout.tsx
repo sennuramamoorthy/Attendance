@@ -16,7 +16,10 @@ type FetchResult =
   | { kind: "error"; status: number }
   | { kind: "unreachable" };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
+const API_BASE_URL =
+  process.env.API_INTERNAL_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8001";
 
 async function fetchMe(token: string): Promise<FetchResult> {
   try {
@@ -95,6 +98,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen">
       <Topbar
         userName={me.full_name ?? me.email ?? "User"}
+        email={me.email}
         roles={me.roles}
       />
       <main className="max-w-[1480px] mx-auto px-6 py-8 pb-20">

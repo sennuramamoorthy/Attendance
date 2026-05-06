@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 :root {
+  /* Theme knobs (overridable from <ThemeProvider>) */
+  --hue: 253; /* purple by default, matches the original #6d4cff */
+  --font-scale: 1;
+
   --ink: #1a1d3a;
   --ink-2: #2e3358;
   --muted: #6f7596;
@@ -8,10 +12,19 @@
   --line-2: rgba(28, 32, 82, 0.08);
   --glass: rgba(255, 255, 255, 0.55);
   --glass-2: rgba(255, 255, 255, 0.35);
-  --accent: #6d4cff;
-  --accent-2: #22d3c7;
-  --pink: #ff6ba6;
-  --amber: #ffb84a;
+  /* Elevated panels (modals, dropdowns) — higher opacity than glass cards
+     so content stays readable on top, but still translucent for the
+     glassmorphism feel. */
+  --panel: rgba(255, 255, 255, 0.85);
+  --panel-border: rgba(255, 255, 255, 0.7);
+  /* Accent palette is hue-driven so users can pick a brand color.
+     Companion colors stay at fixed offsets from the chosen hue so the
+     palette always feels coherent. */
+  --accent: hsl(var(--hue), 100%, 65%);
+  --accent-2: hsl(calc(var(--hue) + 282), 71%, 48%);
+  --pink: hsl(calc(var(--hue) + 85), 100%, 71%);
+  --amber: hsl(calc(var(--hue) + 142), 100%, 65%);
+  /* Semantic colors stay fixed — they convey meaning, not branding. */
   --good: #0fb88f;
   --warn: #f59e0b;
   --bad: #ef4458;
@@ -44,14 +57,23 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Tailwind's text-* utilities are rem-based, so scaling html.font-size
+     scales the entire app. Keep proportional 16px base * user multiplier. */
+  font-size: calc(16px * var(--font-scale, 1));
+}
+
 html,
 body {
   margin: 0;
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   min-height: 100%;
+}
+
+body {
+  font-size: 0.875rem; /* 14px at default scale */
 }
 
 body {
@@ -62,6 +84,69 @@ body {
     linear-gradient(180deg, #f4f1ff, #eaf6ff);
   background-attachment: fixed;
   min-height: 100vh;
+}
+
+/* ─── Dark mode ──────────────────────────────────────────
+   Glass cards stay white-translucent (the glassmorphism aesthetic
+   relies on that frosted look) but the page substrate, text, and
+   borders flip. Accent colors are HSL-based so they pop on either
+   background without changes. */
+:root[data-theme="dark"] {
+  --ink: #f4f1ff;
+  --ink-2: #c8cee0;
+  --muted: #8b91a8;
+  --line: rgba(255, 255, 255, 0.12);
+  --line-2: rgba(255, 255, 255, 0.08);
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-2: rgba(255, 255, 255, 0.04);
+  --panel: rgba(20, 24, 50, 0.92);
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --shadow: 0 14px 40px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+:root[data-theme="dark"] body {
+  background: radial-gradient(900px 600px at 8% -5%, rgba(109, 76, 255, 0.28) 0%, transparent 60%),
+    radial-gradient(700px 500px at 95% 5%, rgba(34, 211, 199, 0.2) 0%, transparent 55%),
+    radial-gradient(800px 600px at 75% 95%, rgba(255, 107, 166, 0.18) 0%, transparent 60%),
+    radial-gradient(700px 500px at 10% 90%, rgba(255, 184, 74, 0.14) 0%, transparent 55%),
+    linear-gradient(180deg, #0a0d20, #0f1428);
+}
+
+/* The codebase has ~93 places that hard-code `bg-white/X` and
+   `border-white/X` for translucent surfaces (form inputs, code chips,
+   subtle hovers). On a dark page those become near-white panels with
+   poor contrast for our light text. Reinterpret them in dark mode as
+   subtle white tints + brighter borders so layouts stay legible without
+   touching every component. */
+:root[data-theme="dark"] .bg-white\/40 { background-color: rgba(255, 255, 255, 0.05); }
+:root[data-theme="dark"] .bg-white\/50 { background-color: rgba(255, 255, 255, 0.06); }
+:root[data-theme="dark"] .bg-white\/55 { background-color: rgba(255, 255, 255, 0.07); }
+:root[data-theme="dark"] .bg-white\/60 { background-color: rgba(255, 255, 255, 0.08); }
+:root[data-theme="dark"] .bg-white\/65 { background-color: rgba(255, 255, 255, 0.09); }
+:root[data-theme="dark"] .bg-white\/70 { background-color: rgba(255, 255, 255, 0.10); }
+:root[data-theme="dark"] .bg-white\/85 { background-color: rgba(20, 24, 50, 0.85); }
+
+:root[data-theme="dark"] .border-white\/55 { border-color: rgba(255, 255, 255, 0.10); }
+:root[data-theme="dark"] .border-white\/60 { border-color: rgba(255, 255, 255, 0.12); }
+:root[data-theme="dark"] .border-white\/70 { border-color: rgba(255, 255, 255, 0.14); }
+
+/* Hover variants used in tables and tiles */
+:root[data-theme="dark"] .hover\:bg-white\/40:hover { background-color: rgba(255, 255, 255, 0.07); }
+:root[data-theme="dark"] .hover\:bg-white\/60:hover { background-color: rgba(255, 255, 255, 0.10); }
+:root[data-theme="dark"] .hover\:bg-white\/70:hover { background-color: rgba(255, 255, 255, 0.12); }
+:root[data-theme="dark"] .hover\:bg-white\/85:hover { background-color: rgba(255, 255, 255, 0.14); }
+
+/* Form inputs: ensure the placeholder + value text adapt and the
+   browser's autofill doesn't leave a yellow background. */
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  color: var(--ink);
+}
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+  color: var(--muted);
 }
 
 h1 {

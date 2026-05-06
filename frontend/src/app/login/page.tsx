@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/auth/supabase-client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -11,27 +10,37 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setError(error.message);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      // Hard navigation to "/" — the root page calls /api/me and routes
+      // to the user's role-appropriate landing (e.g. /admin, /executive,
+      // /student). Using location.assign instead of router.push so the
+      // next request carries the freshly-set session cookie.
+      window.location.assign("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed");
+    } finally {
+      // Loading state would normally clear when the page unmounts on
+      // navigation; clear it explicitly so a hung redirect doesn't leave
+      // the button stuck at "Signing in...".
       setLoading(false);
-      return;
     }
-
-    router.push("/student");
-    router.refresh();
   }
 
   return (

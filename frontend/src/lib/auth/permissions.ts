@@ -83,3 +83,25 @@ export const ROLE_ROUTES: Record<Role, string> = {
   chancellor: "/executive",
   admin: "/admin",
 };
+
+// Order matters — used to pick a default landing page when a user has
+// multiple roles. Most-empowered first: admins land on /admin, while a
+// faculty-who-is-also-a-student lands on /faculty.
+const ROLE_PRIORITY: readonly Role[] = [
+  "admin",
+  "chancellor",
+  "vc",
+  "registrar",
+  "dean",
+  "hod",
+  "cic",
+  "faculty",
+  "student",
+];
+
+export function defaultRouteFor(roles: readonly Role[]): string {
+  for (const r of ROLE_PRIORITY) {
+    if (roles.includes(r)) return ROLE_ROUTES[r];
+  }
+  return "/login";
+}

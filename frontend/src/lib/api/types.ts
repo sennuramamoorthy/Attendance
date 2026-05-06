@@ -181,3 +181,136 @@ export interface StudentRow {
   admitted_year: number;
   phone: string | null;
 }
+
+export interface VcSchoolStanding {
+  code: string;
+  name: string;
+  percentage: number | null;
+  color: string;
+  min_pct: number;
+}
+
+export interface VcTrendLine {
+  code: string;
+  name: string;
+  color: string;
+  values: number[];
+}
+
+export interface VcComplianceFlag {
+  code: string;
+  severity: "critical" | "warning";
+  message: string;
+  owner: string;
+  action: string;
+}
+
+export interface VcAgendaItem {
+  title: string;
+  subtitle: string;
+  status: "pending" | "approved" | "draft";
+}
+
+export interface AdminStudentDetail {
+  student: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string | null;
+    enrollment_no: string;
+    admitted_year: number;
+    device_bound: boolean;
+  };
+  section: { year: number; division: string };
+  program: { code: string; name: string };
+  department: { code: string; name: string };
+  school: { code: string; name: string; min_attendance_pct: number };
+  attendance: {
+    overall_percentage: number;
+    total: number;
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    below_threshold: boolean;
+  };
+  per_subject: Array<{
+    subject_code: string;
+    subject_name: string;
+    faculty_name: string;
+    total: number;
+    present: number;
+    percentage: number | null;
+  }>;
+  today_schedule: Array<{
+    schedule_id: string;
+    assignment_id: string;
+    start_time: string;
+    end_time: string;
+    room: string;
+    subject_code: string;
+    subject_name: string;
+    faculty_name: string;
+    session_status: string | null;
+    is_marked: boolean;
+  }>;
+}
+
+export interface AdminFacultyDetail {
+  faculty: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string | null;
+    employee_id: string;
+  };
+  department: { code: string; name: string };
+  school: { code: string; name: string; min_attendance_pct: number };
+  summary: {
+    assignments_count: number;
+    sessions_held: number;
+    avg_attendance_pct: number | null;
+  };
+  assignments: Array<{
+    id: string;
+    subject_code: string;
+    subject_name: string;
+    subject_type: string;
+    credits: number;
+    section_label: string;
+    section_year: number;
+    section_division: string;
+    program_name: string;
+    academic_year: number;
+    term: number;
+    section_size: number;
+    sessions_held: number;
+    average_attendance_pct: number | null;
+  }>;
+  today_schedule: Array<{
+    schedule_id: string;
+    assignment_id: string;
+    start_time: string;
+    end_time: string;
+    room: string;
+    subject_code: string;
+    subject_name: string;
+    section_label: string;
+    session_status: string | null;
+    present_count: number;
+  }>;
+}
+
+export interface VcOverview {
+  attendance_ytd: number;
+  attendance_ytd_yoy_delta: number;
+  faculty_compliance_pct: number;
+  faculty_compliance_target: number;
+  at_risk_count: number;
+  at_risk_wow_delta: number;
+  schools_league: VcSchoolStanding[];
+  trend: { weeks: string[]; lines: VcTrendLine[] };
+  compliance_flags: VcComplianceFlag[];
+  compliance_critical_count: number;
+  council_agenda: VcAgendaItem[];
+}
