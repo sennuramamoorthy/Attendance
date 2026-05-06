@@ -12,6 +12,11 @@
   --line-2: rgba(28, 32, 82, 0.08);
   --glass: rgba(255, 255, 255, 0.55);
   --glass-2: rgba(255, 255, 255, 0.35);
+  /* Elevated panels (modals, dropdowns) — higher opacity than glass cards
+     so content stays readable on top, but still translucent for the
+     glassmorphism feel. */
+  --panel: rgba(255, 255, 255, 0.85);
+  --panel-border: rgba(255, 255, 255, 0.7);
   /* Accent palette is hue-driven so users can pick a brand color.
      Companion colors stay at fixed offsets from the chosen hue so the
      palette always feels coherent. */
@@ -79,6 +84,33 @@ body {
     linear-gradient(180deg, #f4f1ff, #eaf6ff);
   background-attachment: fixed;
   min-height: 100vh;
+}
+
+/* ─── Dark mode ──────────────────────────────────────────
+   Glass cards stay white-translucent (the glassmorphism aesthetic
+   relies on that frosted look) but the page substrate, text, and
+   borders flip. Accent colors are HSL-based so they pop on either
+   background without changes. */
+:root[data-theme="dark"] {
+  --ink: #f4f1ff;
+  --ink-2: #c8cee0;
+  --muted: #8b91a8;
+  --line: rgba(255, 255, 255, 0.12);
+  --line-2: rgba(255, 255, 255, 0.08);
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-2: rgba(255, 255, 255, 0.04);
+  --panel: rgba(20, 24, 50, 0.92);
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --shadow: 0 14px 40px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+:root[data-theme="dark"] body {
+  background: radial-gradient(900px 600px at 8% -5%, rgba(109, 76, 255, 0.28) 0%, transparent 60%),
+    radial-gradient(700px 500px at 95% 5%, rgba(34, 211, 199, 0.2) 0%, transparent 55%),
+    radial-gradient(800px 600px at 75% 95%, rgba(255, 107, 166, 0.18) 0%, transparent 60%),
+    radial-gradient(700px 500px at 10% 90%, rgba(255, 184, 74, 0.14) 0%, transparent 55%),
+    linear-gradient(180deg, #0a0d20, #0f1428);
 }
 
 h1 {

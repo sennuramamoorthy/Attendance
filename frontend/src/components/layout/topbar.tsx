@@ -118,7 +118,7 @@ export function Topbar({ userName, email, roles }: TopbarProps) {
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white/85 border border-white/70 backdrop-blur-[20px] shadow-[0_14px_40px_rgba(28,32,82,0.12)] overflow-hidden">
+            <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-[var(--panel)] border border-[var(--panel-border)] backdrop-blur-[20px] shadow-[0_14px_40px_rgba(28,32,82,0.12)] overflow-hidden">
               <div className="px-4 py-3 border-b border-white/70">
                 <div className="text-sm font-semibold text-ink truncate">
                   {userName}

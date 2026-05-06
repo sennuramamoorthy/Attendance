@@ -27,7 +27,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-white/85 border border-white/70 rounded-[var(--radius)] backdrop-blur-[20px] shadow-[0_30px_80px_rgba(28,32,82,0.18)] w-full max-w-lg p-6"
+        className="bg-[var(--panel)] border border-[var(--panel-border)] rounded-[var(--radius)] backdrop-blur-[20px] shadow-[0_30px_80px_rgba(28,32,82,0.18)] w-full max-w-lg p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">

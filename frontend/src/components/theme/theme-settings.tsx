@@ -9,6 +9,7 @@ import {
   type FontSize,
   HUE_PRESETS,
   loadTheme,
+  type Mode,
   saveTheme,
   type ThemeSettings,
 } from "@/lib/theme";
@@ -22,6 +23,12 @@ const FONT_OPTIONS: { value: FontSize; label: string; sample: string }[] = [
   { value: "small", label: "Small", sample: "Aa" },
   { value: "medium", label: "Default", sample: "Aa" },
   { value: "large", label: "Large", sample: "Aa" },
+];
+
+const MODE_OPTIONS: { value: Mode; label: string; icon: string }[] = [
+  { value: "light", label: "Light", icon: "☀" },
+  { value: "dark", label: "Dark", icon: "☾" },
+  { value: "auto", label: "Auto", icon: "⏾" },
 ];
 
 export function ThemeSettingsModal({ open, onClose }: ThemeSettingsModalProps) {
@@ -52,6 +59,34 @@ function ThemeSettingsContent({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="space-y-5">
+      {/* Mode */}
+      <div>
+        <label className="text-xs font-semibold text-muted uppercase tracking-wide mb-2 block">
+          Appearance
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {MODE_OPTIONS.map((opt) => {
+            const active = settings.mode === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => update({ mode: opt.value })}
+                className={`flex flex-col items-center justify-center py-3 rounded-xl border ${
+                  active
+                    ? "border-accent/50 bg-white/70"
+                    : "border-white/70 bg-white/40 hover:bg-white/60"
+                }`}
+              >
+                <span className="text-xl text-ink-2">{opt.icon}</span>
+                <span className="text-[10px] text-muted font-semibold mt-0.5">
+                  {opt.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Accent hue */}
         <div>
           <div className="flex items-center justify-between mb-2">
