@@ -314,3 +314,69 @@ export interface VcOverview {
   compliance_critical_count: number;
   council_agenda: VcAgendaItem[];
 }
+
+// ─── User onboarding ──────────────────────────────────
+
+export type UserRoleName =
+  | "admin"
+  | "student"
+  | "faculty"
+  | "cic"
+  | "hod"
+  | "dean"
+  | "registrar"
+  | "vc"
+  | "chancellor";
+
+export interface PendingUser {
+  user_id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  role: string; // "student" | "faculty" | "cic" | … | "—"
+  entity_label: string | null; // section / dept / school context
+}
+
+export interface OnboardResultRow {
+  user_id: string;
+  email: string;
+  full_name: string;
+  password: string | null;
+  status: "ok" | "already_provisioned" | "error";
+  error: string | null;
+}
+
+export interface OnboardResponse {
+  total: number;
+  provisioned: number;
+  already: number;
+  failed: number;
+  results: OnboardResultRow[];
+}
+
+export interface CreateUserRequest {
+  email: string;
+  full_name: string;
+  phone?: string;
+  role: UserRoleName;
+  // Scope IDs — required based on role.
+  school_id?: string;
+  department_id?: string;
+  section_id?: string;
+  // Faculty-specific
+  employee_id?: string;
+  // Student-specific
+  enrollment_no?: string;
+  admitted_year?: number;
+  // If true (default), create gotrue auth + return one-time password.
+  provision?: boolean;
+}
+
+export interface CreateUserResponse {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  password: string | null;
+  provisioned: boolean;
+}

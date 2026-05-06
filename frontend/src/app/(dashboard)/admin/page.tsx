@@ -7,6 +7,12 @@ import { Pill } from "@/components/ui/pill";
 
 const adminModules = [
   {
+    title: "Users & Onboarding",
+    description: "Create users with role assignment, generate logins for bulk-uploaded students/faculty",
+    href: "/admin/users",
+    icon: "🔑",
+  },
+  {
     title: "Schools",
     description: "Manage schools, term types, and attendance thresholds",
     href: "/admin/schools",

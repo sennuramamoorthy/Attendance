@@ -3,11 +3,15 @@ import type {
   Assignment,
   AtRiskStudent,
   BulkUploadResult,
+  CreateUserRequest,
+  CreateUserResponse,
   Department,
   ExecutiveOverview,
   Faculty,
   FacultyScheduleItem,
   MarkAttendanceResponse,
+  OnboardResponse,
+  PendingUser,
   Program,
   QrTokenResponse,
   RegistrarOverview,
@@ -148,6 +152,12 @@ export const adminApi = {
     return api.post<BulkUploadResult>("/api/admin/bulk-upload", formData);
   },
   downloadTemplate: (type: string) => downloadFile(`/api/admin/bulk-upload/template?type=${encodeURIComponent(type)}`, `${type}_template.csv`),
+  // ─── User provisioning ──────────────────────────────
+  listPendingUsers: () => api.get<PendingUser[]>("/api/admin/users/pending"),
+  onboardUsers: (body: { user_ids?: string[]; onboard_all_pending?: boolean }) =>
+    api.post<OnboardResponse>("/api/admin/users/onboard", body),
+  createUser: (body: CreateUserRequest) =>
+    api.post<CreateUserResponse>("/api/admin/users/create", body),
 };
 
 export async function downloadFile(path: string, filename: string): Promise<void> {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,19 @@ export function BulkUploadCard({ type, columns, notes, onUploaded }: BulkUploadC
                   {err}
                 </p>
               ))}
+            </div>
+          )}
+          {result.success > 0 && (type === "students" || type === "faculty") && (
+            // Bulk upload only creates DB rows — no auth account exists yet, so
+            // these users can't log in. Nudge admin to the onboarding flow.
+            <div className="mt-3 pt-3 border-t border-white/70 flex items-center justify-between gap-3">
+              <p className="text-xs text-muted">
+                <strong>Next step:</strong> generate login passwords so the
+                new {type} can sign in.
+              </p>
+              <Link href="/admin/users">
+                <Button variant="primary">→ Onboard logins</Button>
+              </Link>
             </div>
           )}
         </div>
