@@ -113,6 +113,42 @@ body {
     linear-gradient(180deg, #0a0d20, #0f1428);
 }
 
+/* The codebase has ~93 places that hard-code `bg-white/X` and
+   `border-white/X` for translucent surfaces (form inputs, code chips,
+   subtle hovers). On a dark page those become near-white panels with
+   poor contrast for our light text. Reinterpret them in dark mode as
+   subtle white tints + brighter borders so layouts stay legible without
+   touching every component. */
+:root[data-theme="dark"] .bg-white\/40 { background-color: rgba(255, 255, 255, 0.05); }
+:root[data-theme="dark"] .bg-white\/50 { background-color: rgba(255, 255, 255, 0.06); }
+:root[data-theme="dark"] .bg-white\/55 { background-color: rgba(255, 255, 255, 0.07); }
+:root[data-theme="dark"] .bg-white\/60 { background-color: rgba(255, 255, 255, 0.08); }
+:root[data-theme="dark"] .bg-white\/65 { background-color: rgba(255, 255, 255, 0.09); }
+:root[data-theme="dark"] .bg-white\/70 { background-color: rgba(255, 255, 255, 0.10); }
+:root[data-theme="dark"] .bg-white\/85 { background-color: rgba(20, 24, 50, 0.85); }
+
+:root[data-theme="dark"] .border-white\/55 { border-color: rgba(255, 255, 255, 0.10); }
+:root[data-theme="dark"] .border-white\/60 { border-color: rgba(255, 255, 255, 0.12); }
+:root[data-theme="dark"] .border-white\/70 { border-color: rgba(255, 255, 255, 0.14); }
+
+/* Hover variants used in tables and tiles */
+:root[data-theme="dark"] .hover\:bg-white\/40:hover { background-color: rgba(255, 255, 255, 0.07); }
+:root[data-theme="dark"] .hover\:bg-white\/60:hover { background-color: rgba(255, 255, 255, 0.10); }
+:root[data-theme="dark"] .hover\:bg-white\/70:hover { background-color: rgba(255, 255, 255, 0.12); }
+:root[data-theme="dark"] .hover\:bg-white\/85:hover { background-color: rgba(255, 255, 255, 0.14); }
+
+/* Form inputs: ensure the placeholder + value text adapt and the
+   browser's autofill doesn't leave a yellow background. */
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  color: var(--ink);
+}
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+  color: var(--muted);
+}
+
 h1 {
   font-size: 32px;
   font-weight: 700;
