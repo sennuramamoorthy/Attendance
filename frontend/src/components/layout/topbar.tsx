@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { type Role, ROLE_LABELS, ROLE_ROUTES } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/auth/supabase-client";
+import { ThemeSettingsModal } from "@/components/theme/theme-settings";
 
 interface TopbarProps {
   userName: string;
@@ -33,6 +34,7 @@ export function Topbar({ userName, email, roles }: TopbarProps) {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -136,6 +138,15 @@ export function Topbar({ userName, email, roles }: TopbarProps) {
                 )}
               </div>
               <button
+                onClick={() => {
+                  setThemeOpen(true);
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm font-semibold text-ink-2 hover:bg-white/60 cursor-pointer border-b border-white/70"
+              >
+                🎨 Theme
+              </button>
+              <button
                 onClick={handleSignOut}
                 disabled={signingOut}
                 className="w-full text-left px-4 py-2.5 text-sm font-semibold text-ink-2 hover:bg-white/60 cursor-pointer disabled:opacity-50"
@@ -146,6 +157,8 @@ export function Topbar({ userName, email, roles }: TopbarProps) {
           )}
         </div>
       </div>
+
+      <ThemeSettingsModal open={themeOpen} onClose={() => setThemeOpen(false)} />
     </header>
   );
 }

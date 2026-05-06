@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 :root {
+  /* Theme knobs (overridable from <ThemeProvider>) */
+  --hue: 253; /* purple by default, matches the original #6d4cff */
+  --font-scale: 1;
+
   --ink: #1a1d3a;
   --ink-2: #2e3358;
   --muted: #6f7596;
@@ -8,10 +12,14 @@
   --line-2: rgba(28, 32, 82, 0.08);
   --glass: rgba(255, 255, 255, 0.55);
   --glass-2: rgba(255, 255, 255, 0.35);
-  --accent: #6d4cff;
-  --accent-2: #22d3c7;
-  --pink: #ff6ba6;
-  --amber: #ffb84a;
+  /* Accent palette is hue-driven so users can pick a brand color.
+     Companion colors stay at fixed offsets from the chosen hue so the
+     palette always feels coherent. */
+  --accent: hsl(var(--hue), 100%, 65%);
+  --accent-2: hsl(calc(var(--hue) + 282), 71%, 48%);
+  --pink: hsl(calc(var(--hue) + 85), 100%, 71%);
+  --amber: hsl(calc(var(--hue) + 142), 100%, 65%);
+  /* Semantic colors stay fixed — they convey meaning, not branding. */
   --good: #0fb88f;
   --warn: #f59e0b;
   --bad: #ef4458;
@@ -44,14 +52,23 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Tailwind's text-* utilities are rem-based, so scaling html.font-size
+     scales the entire app. Keep proportional 16px base * user multiplier. */
+  font-size: calc(16px * var(--font-scale, 1));
+}
+
 html,
 body {
   margin: 0;
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   min-height: 100%;
+}
+
+body {
+  font-size: 0.875rem; /* 14px at default scale */
 }
 
 body {
