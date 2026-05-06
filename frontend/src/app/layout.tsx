@@ -38,7 +38,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    // suppressHydrationWarning is necessary because the NO_FLASH_SCRIPT below
+    // mutates <html> (sets data-theme + inline style for --hue/--font-scale)
+    // before React hydrates. Server renders <html> without those attributes,
+    // so React sees a diff. This suppression is scoped to <html> only — the
+    // rest of the tree still validates normally.
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
       </head>
