@@ -175,7 +175,26 @@ docker-down: ## Stop and remove all containers
 	@docker compose down
 
 .PHONY: docker-restart
-docker-restart: docker-down docker-up ## Restart the full stack
+docker-restart: docker-down docker-up ## Restart the full stack (no rebuild — quick)
+
+.PHONY: restart
+restart: restart-backend restart-frontend ## Rebuild + restart both apps (picks up new code)
+
+.PHONY: restart-backend
+restart-backend: ## Rebuild backend image and recreate container (picks up new code)
+	@echo "→ Rebuilding backend image"
+	@docker compose build backend
+	@echo "→ Recreating backend container"
+	@docker compose up -d --force-recreate backend
+	@echo "→ Backend restarted on http://localhost:$(BACKEND_PORT)/docs"
+
+.PHONY: restart-frontend
+restart-frontend: ## Rebuild frontend image and recreate container (picks up new code)
+	@echo "→ Rebuilding frontend image"
+	@docker compose build frontend
+	@echo "→ Recreating frontend container"
+	@docker compose up -d --force-recreate frontend
+	@echo "→ Frontend restarted on http://localhost:$(FRONTEND_PORT)"
 
 .PHONY: docker-logs
 docker-logs: ## Tail logs from all services

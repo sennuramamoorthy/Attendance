@@ -68,3 +68,37 @@ async def upsert_auth_user(email: str, password: str) -> UUID:
             return user_id
 
         raise RuntimeError(f"gotrue returned {resp.status_code}: {resp.text}")
+
+
+async def list_auth_users() -> dict[str, UUID]:
+    """Return {email: gotrue_user_id} for every user in gotrue.
+
+    Used by the admin onboarding flow to diff public.users vs auth users —
+    a row in `users` whose email isn't here, or whose `id` doesn't match the
+    gotrue id, hasn't been provisioned yet.
+
+    Cost: O(N) requests, paginated 200 at a time. Fine for MVP scale.
+    """
+    out: dict[str, UUID] = {}
+    page = 1
+    per_page = 200
+    async with httpx.AsyncClient(timeout=15) as client:
+        while True:
+            resp = await client.get(
+                f"{GOTRUE_URL}/admin/users",
+                params={"page": page, "per_page": per_page},
+                headers=HEADERS,
+            )
+            resp.raise_for_status()
+            users = resp.json().get("users", [])
+            if not users:
+                break
+            for u in users:
+                email = u.get("email")
+                uid = u.get("id")
+                if email and uid:
+                    out[email.lower()] = UUID(uid)
+            if len(users) < per_page:
+                break
+            page += 1
+    return out

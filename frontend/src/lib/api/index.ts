@@ -1,13 +1,22 @@
 import { api } from "./client";
 import type {
+  AdminSectionDetail,
   Assignment,
   AtRiskStudent,
+  AttendanceStatus,
+  AttendanceWindow,
   BulkUploadResult,
+  CicStudentSessionsResponse,
+  CicStudentsResponse,
+  CreateUserRequest,
+  CreateUserResponse,
   Department,
   ExecutiveOverview,
   Faculty,
   FacultyScheduleItem,
   MarkAttendanceResponse,
+  OnboardResponse,
+  PendingUser,
   Program,
   QrTokenResponse,
   RegistrarOverview,
@@ -70,8 +79,22 @@ export const facultyApi = {
 
 export const cicApi = {
   getRoster: () => api.get<RosterStudent[]>("/api/cic/roster"),
-  manualMark: (body: { student_id: string; session_id: string; status?: string }) =>
-    api.post<{ success: boolean }>("/api/cic/manual-mark", body),
+  manualMark: (body: {
+    student_id: string;
+    session_id: string;
+    status: AttendanceStatus;
+  }) => api.post<{ success: boolean }>("/api/cic/manual-mark", body),
+  // Class view (timetable + subjects + faculty), same shape as the admin
+  // section detail — backend reuses the same helper.
+  getOverview: () => api.get<AdminSectionDetail>("/api/cic/overview"),
+  getStudents: (window: AttendanceWindow) =>
+    api.get<CicStudentsResponse>(`/api/cic/students?window=${window}`),
+  // Per-session record list for one student in the chosen window — drives
+  // the edit modal where CIC overrides individual session statuses.
+  getStudentSessions: (studentId: string, window: AttendanceWindow) =>
+    api.get<CicStudentSessionsResponse>(
+      `/api/cic/student-sessions?student_id=${encodeURIComponent(studentId)}&window=${window}`
+    ),
 };
 
 export const adminApi = {
@@ -141,6 +164,7 @@ export const adminApi = {
       | "subjects"
       | "students"
       | "assignments"
+      | "timetable"
   ) => {
     const formData = new FormData();
     formData.append("file", file);
@@ -148,6 +172,12 @@ export const adminApi = {
     return api.post<BulkUploadResult>("/api/admin/bulk-upload", formData);
   },
   downloadTemplate: (type: string) => downloadFile(`/api/admin/bulk-upload/template?type=${encodeURIComponent(type)}`, `${type}_template.csv`),
+  // ─── User provisioning ──────────────────────────────
+  listPendingUsers: () => api.get<PendingUser[]>("/api/admin/users/pending"),
+  onboardUsers: (body: { user_ids?: string[]; onboard_all_pending?: boolean }) =>
+    api.post<OnboardResponse>("/api/admin/users/onboard", body),
+  createUser: (body: CreateUserRequest) =>
+    api.post<CreateUserResponse>("/api/admin/users/create", body),
 };
 
 export async function downloadFile(path: string, filename: string): Promise<void> {

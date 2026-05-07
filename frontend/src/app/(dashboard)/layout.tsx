@@ -8,6 +8,7 @@ interface MeResponse {
   email: string;
   full_name: string | null;
   roles: Role[];
+  password_reset_required: boolean;
 }
 
 type FetchResult =
@@ -93,6 +94,12 @@ export default async function DashboardLayout({
   }
 
   const me = result.me;
+
+  // Force first-login password reset. The reset-password page lives outside
+  // this layout group, so an unconditional redirect here is safe — no loop.
+  if (me.password_reset_required) {
+    redirect("/reset-password");
+  }
 
   return (
     <div className="min-h-screen">

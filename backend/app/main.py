@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
     admin,
     admin_edit,
+    admin_users,
     at_risk,
     attendance,
     cic,
@@ -44,6 +45,7 @@ app.include_router(faculty.router, prefix="/api/faculty", tags=["faculty"])
 app.include_router(cic.router, prefix="/api/cic", tags=["cic"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(admin_edit.router, prefix="/api/admin", tags=["admin"])
+app.include_router(admin_users.router, prefix="/api/admin", tags=["admin"])
 app.include_router(registrar.router, prefix="/api/registrar", tags=["registrar"])
 app.include_router(executive.router, prefix="/api/executive", tags=["executive"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])

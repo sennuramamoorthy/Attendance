@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { adminApi } from "@/lib/api";
@@ -10,6 +11,7 @@ import { BulkUploadCard } from "@/components/admin/bulk-upload-card";
 import { Modal } from "@/components/ui/modal";
 
 export default function AdminSectionsPage() {
+  const router = useRouter();
   const [schools, setSchools] = useState<School[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -129,6 +131,21 @@ export default function AdminSectionsPage() {
         type="sections"
         columns={["program_code", "year", "division"]}
         notes="program_code references an existing program (e.g. BTECH-CSE)."
+        onUploaded={fetchAll}
+      />
+      <BulkUploadCard
+        type="timetable"
+        columns={[
+          "program_code",
+          "year",
+          "division",
+          "day",
+          "period_number",
+          "subject_code",
+          "duration_periods",
+          "room_override",
+        ]}
+        notes="Each row places one subject in one period of one day for a section. day accepts Mon/Tue/.../Sun or 0–6. duration_periods defaults to 1; use 2 for labs that span two periods. room_override is blank for theory (uses the section's classroom) and set to a lab block (e.g. E-Lab1) for labs. The subject must already be assigned to the section."
         onUploaded={fetchAll}
       />
 
@@ -286,7 +303,11 @@ export default function AdminSectionsPage() {
               {sections.map((s) => {
                 const program = programs.find((p) => p.id === s.program_id);
                 return (
-                  <tr key={s.id}>
+                  <tr
+                    key={s.id}
+                    onClick={() => router.push(`/admin/sections/${s.id}`)}
+                    className="cursor-pointer hover:bg-white/40 transition-colors"
+                  >
                     <td className="px-4 py-3 border-t border-[var(--line-2)] font-semibold">
                       Year {s.year} {s.division}
                     </td>
@@ -294,7 +315,10 @@ export default function AdminSectionsPage() {
                     <td className="px-4 py-3 border-t border-[var(--line-2)] text-muted">
                       {program ? deptName(program.department_id) : "—"}
                     </td>
-                    <td className="px-4 py-3 border-t border-[var(--line-2)] text-right whitespace-nowrap">
+                    <td
+                      className="px-4 py-3 border-t border-[var(--line-2)] text-right whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button onClick={() => setEditingSection(s)} className="text-xs text-muted hover:text-accent mr-3">
                         ✎ Edit
                       </button>

@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Text, Time
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ENUM, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -67,6 +67,37 @@ class Section(Base):
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     division: Mapped[str] = mapped_column(Text, nullable=False, default="A")
     cic_user_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    # Default classroom (where students sit). Faculty rotate through rooms;
+    # students stay put. Nullable so existing rows survive migration —
+    # newly created sections should always set this.
+    room: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class SchoolPeriod(Base):
+    """The master period grid for a school. Back-to-back time slots, possibly
+    interrupted by `is_break=True` rows (e.g. Lunch). All sections in the
+    school share this grid — class_schedules.period_number references it."""
+
+    __tablename__ = "school_periods"
+    __table_args__ = (
+        UniqueConstraint("school_id", "period_number", name="uq_school_period"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    school_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("schools.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    period_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_time: Mapped[time] = mapped_column(Time, nullable=False)
+    end_time: Mapped[time] = mapped_column(Time, nullable=False)
+    label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_break: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -132,9 +163,17 @@ class ClassSchedule(Base):
         PGUUID(as_uuid=True), ForeignKey("subject_assignments.id"), nullable=False
     )
     day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Period reference (preferred for new schedules). When set, start_time
+    # and end_time are denormalised copies of the (period .. period+duration-1)
+    # range from the school's grid — kept in sync at insert time so existing
+    # queries that read times don't need a join.
+    period_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_periods: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
     end_time: Mapped[time] = mapped_column(Time, nullable=False)
-    room: Mapped[str] = mapped_column(Text, nullable=False)
+    # Optional room override. Null → use the section's default classroom
+    # (Section.room). Labs typically set this to a lab block (e.g. E-Lab1).
+    room: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
