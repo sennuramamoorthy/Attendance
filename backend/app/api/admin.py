@@ -369,6 +369,10 @@ async def get_student_detail(
     ).scalars().all()
     marked_session_ids = set(my_records)
 
+    # Section's default classroom — used when class_schedules.room is null
+    # (theory classes; labs always carry their own override).
+    student_section_room = section.room or "—"
+
     schedule = []
     for sched_id, start, end, room, code, sub_name, faculty_name, assignment_id in schedule_rows:
         session = session_by_assignment.get(assignment_id)
@@ -378,7 +382,7 @@ async def get_student_detail(
                 "assignment_id": str(assignment_id),
                 "start_time": start.isoformat(timespec="minutes"),
                 "end_time": end.isoformat(timespec="minutes"),
-                "room": room,
+                "room": room or student_section_room,
                 "subject_code": code,
                 "subject_name": sub_name,
                 "faculty_name": faculty_name,
@@ -595,6 +599,7 @@ async def get_faculty_detail(
                 ClassSchedule.start_time,
                 ClassSchedule.end_time,
                 ClassSchedule.room,
+                Section.room,  # default classroom for the section the class is in
                 Subject.code,
                 Subject.name,
                 SubjectAssignment.id,
@@ -629,6 +634,7 @@ async def get_faculty_detail(
         start,
         end,
         room,
+        section_room,
         s_code,
         s_name,
         assignment_id,
@@ -657,7 +663,7 @@ async def get_faculty_detail(
                 "assignment_id": str(assignment_id),
                 "start_time": start.isoformat(timespec="minutes"),
                 "end_time": end.isoformat(timespec="minutes"),
-                "room": room,
+                "room": room or section_room or "—",
                 "subject_code": s_code,
                 "subject_name": s_name,
                 "section_label": f"{prog_code} · Y{year} {division}",
@@ -688,6 +694,325 @@ async def get_faculty_detail(
         "assignments": assignments_payload,
         "today_schedule": schedule_payload,
     }
+
+
+async def compute_section_detail(
+    db: AsyncSession, section_id: UUID
+) -> dict | None:
+    """Build the section detail payload (timetable + subjects + faculty + roll-ups).
+
+    Returns None when the section doesn't exist; callers translate that into
+    a 404. Reused by `/api/admin/sections/{id}/detail` (admin/registrar/dean/
+    hod/cic gated) and `/api/cic/overview` (CIC's own section).
+
+    The body is intentionally identical between the two callers — admins and
+    CICs see the same class view; only the entry path differs.
+    """
+    from sqlalchemy import and_, func
+
+    from app.models.academic import (
+        ClassSchedule,
+        Department,
+        Program,
+        School,
+        SchoolPeriod,
+        Section,
+        Subject,
+        SubjectAssignment,
+    )
+    from app.models.attendance import AttendanceRecord, AttendanceSession
+    from app.models.user import FacultyMember, Student
+
+    # 1. Section + org chain
+    row = (
+        await db.execute(
+            select(Section, Program, Department, School)
+            .join(Program, Section.program_id == Program.id)
+            .join(Department, Program.department_id == Department.id)
+            .join(School, Department.school_id == School.id)
+            .where(Section.id == section_id)
+        )
+    ).first()
+    if not row:
+        # Caller decides how to surface this — admin endpoint raises 404,
+        # CIC endpoint short-circuits since the CIC's section_id is known.
+        return None
+    section, program, department, school = row
+
+    # 1b. School's period grid (the master schedule). The frontend renders
+    # the timetable as a period × day grid driven by this list.
+    period_rows = (
+        await db.execute(
+            select(SchoolPeriod)
+            .where(SchoolPeriod.school_id == school.id)
+            .order_by(SchoolPeriod.period_number)
+        )
+    ).scalars().all()
+    periods_payload = [
+        {
+            "period_number": p.period_number,
+            "start_time": p.start_time.isoformat(timespec="minutes"),
+            "end_time": p.end_time.isoformat(timespec="minutes"),
+            "label": p.label,
+            "is_break": p.is_break,
+        }
+        for p in period_rows
+    ]
+
+    # 2. CIC (optional)
+    cic_payload: dict | None = None
+    if section.cic_user_id:
+        cic_user = (
+            await db.execute(select(User).where(User.id == section.cic_user_id))
+        ).scalar_one_or_none()
+        if cic_user:
+            cic_payload = {
+                "user_id": str(cic_user.id),
+                "full_name": cic_user.full_name,
+                "email": cic_user.email,
+            }
+
+    # 3. Student headcount
+    student_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(Student)
+            .where(Student.section_id == section_id)
+        )
+    ).scalar_one()
+
+    # 4. Assignments (subjects + labs) for this section, with faculty + metrics
+    assignment_rows = (
+        await db.execute(
+            select(
+                SubjectAssignment.id,
+                Subject.id,
+                Subject.code,
+                Subject.name,
+                Subject.type,
+                Subject.credits,
+                FacultyMember.id,
+                FacultyMember.employee_id,
+                User.id,
+                User.full_name,
+                User.email,
+                SubjectAssignment.academic_year,
+                SubjectAssignment.term,
+            )
+            .join(Subject, SubjectAssignment.subject_id == Subject.id)
+            .join(FacultyMember, SubjectAssignment.faculty_id == FacultyMember.id)
+            .join(User, FacultyMember.user_id == User.id)
+            .where(SubjectAssignment.section_id == section_id)
+            .order_by(Subject.type.desc(), Subject.code)  # theory first, then lab
+        )
+    ).all()
+
+    assignments_payload: list[dict] = []
+    assignment_index: dict[UUID, dict] = {}  # for schedule join below
+    for (
+        aid,
+        sid,
+        s_code,
+        s_name,
+        s_type,
+        s_credits,
+        fid,
+        emp_id,
+        uid,
+        f_name,
+        f_email,
+        academic_year,
+        term,
+    ) in assignment_rows:
+        sessions_held = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceSession)
+                .where(AttendanceSession.subject_assignment_id == aid)
+            )
+        ).scalar_one()
+        total = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceRecord)
+                .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+                .where(AttendanceSession.subject_assignment_id == aid)
+            )
+        ).scalar_one()
+        present = (
+            await db.execute(
+                select(func.count())
+                .select_from(AttendanceRecord)
+                .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+                .where(
+                    and_(
+                        AttendanceSession.subject_assignment_id == aid,
+                        AttendanceRecord.status == "present",
+                    )
+                )
+            )
+        ).scalar_one()
+        attendance_pct = round(present / total * 100, 1) if total > 0 else None
+
+        assignment_payload = {
+            "id": str(aid),
+            "subject_id": str(sid),
+            "subject_code": s_code,
+            "subject_name": s_name,
+            "subject_type": s_type,
+            "credits": s_credits,
+            "academic_year": academic_year,
+            "term": term,
+            "sessions_held": sessions_held,
+            "attendance_pct": attendance_pct,
+            "faculty": {
+                "id": str(fid),
+                "user_id": str(uid),
+                "employee_id": emp_id,
+                "full_name": f_name,
+                "email": f_email,
+            },
+        }
+        assignments_payload.append(assignment_payload)
+        assignment_index[aid] = assignment_payload
+
+    # 5. Weekly schedule — Python weekday() convention: 0=Mon … 6=Sun
+    schedule_rows = (
+        await db.execute(
+            select(
+                ClassSchedule.id,
+                ClassSchedule.day_of_week,
+                ClassSchedule.period_number,
+                ClassSchedule.duration_periods,
+                ClassSchedule.start_time,
+                ClassSchedule.end_time,
+                ClassSchedule.room,
+                SubjectAssignment.id,
+            )
+            .join(SubjectAssignment, ClassSchedule.subject_assignment_id == SubjectAssignment.id)
+            .where(SubjectAssignment.section_id == section_id)
+            .order_by(ClassSchedule.day_of_week, ClassSchedule.start_time)
+        )
+    ).all()
+
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    schedule: list[dict] = [
+        {"day_of_week": d, "day_name": day_names[d], "classes": []} for d in range(7)
+    ]
+
+    for (
+        sched_id,
+        dow,
+        period_number,
+        duration_periods,
+        start,
+        end,
+        room,
+        assignment_id,
+    ) in schedule_rows:
+        meta = assignment_index.get(assignment_id)
+        if not meta:
+            continue  # assignment was deleted — skip dangling schedule row
+        # `room` may be null when the class uses the section's default
+        # classroom. Resolve here so the UI doesn't have to.
+        resolved_room = room or section.room or "—"
+        schedule[dow]["classes"].append(
+            {
+                "schedule_id": str(sched_id),
+                "assignment_id": str(assignment_id),
+                "period_number": period_number,
+                "duration_periods": duration_periods or 1,
+                "start_time": start.isoformat(timespec="minutes"),
+                "end_time": end.isoformat(timespec="minutes"),
+                "room": resolved_room,
+                "uses_section_room": room is None,
+                "subject_code": meta["subject_code"],
+                "subject_name": meta["subject_name"],
+                "subject_type": meta["subject_type"],
+                "faculty_name": meta["faculty"]["full_name"],
+                "faculty_employee_id": meta["faculty"]["employee_id"],
+            }
+        )
+
+    # 6. Aggregate roll-up across all assignments (weighted by record count)
+    weighted_sum = 0.0
+    weighted_total = 0
+    total_sessions = 0
+    for a in assignments_payload:
+        if a["attendance_pct"] is not None and a["sessions_held"] > 0:
+            # Re-count records inline isn't worth it — use sessions_held as a
+            # rough weight. For the section-level summary this is fine.
+            weighted_sum += a["attendance_pct"] * a["sessions_held"]
+            weighted_total += a["sessions_held"]
+        total_sessions += a["sessions_held"]
+    avg_attendance_pct = (
+        round(weighted_sum / weighted_total, 1) if weighted_total > 0 else None
+    )
+
+    return {
+        "section": {
+            "id": str(section.id),
+            "year": section.year,
+            "division": section.division,
+            "room": section.room,
+        },
+        "program": {
+            "id": str(program.id),
+            "code": program.code,
+            "name": program.name,
+            "duration_years": program.duration_years,
+        },
+        "department": {
+            "id": str(department.id),
+            "code": department.code,
+            "name": department.name,
+        },
+        "school": {
+            "id": str(school.id),
+            "code": school.code,
+            "name": school.name,
+            "min_attendance_pct": school.min_attendance_pct,
+        },
+        "cic": cic_payload,
+        "student_count": student_count,
+        "summary": {
+            "subject_count": sum(1 for a in assignments_payload if a["subject_type"] != "lab"),
+            "lab_count": sum(1 for a in assignments_payload if a["subject_type"] == "lab"),
+            "total_assignments": len(assignments_payload),
+            "weekly_class_count": sum(len(d["classes"]) for d in schedule),
+            "total_sessions_held": total_sessions,
+            "avg_attendance_pct": avg_attendance_pct,
+        },
+        # School-level master period grid. The UI lays out the timetable as
+        # rows-of-periods × cols-of-days using this list.
+        "periods": periods_payload,
+        "assignments": assignments_payload,
+        "schedule": schedule,
+    }
+
+
+@router.get("/sections/{section_id}/detail")
+async def get_section_detail(
+    section_id: UUID,
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Detail view of a section: weekly schedule + subject/lab list + faculty.
+
+    Admin-side entry point. CIC dashboard reaches the same data via
+    /api/cic/overview, which scopes by the CIC's own section.
+    """
+    if not current_user.role_names().intersection(
+        {"admin", "registrar", "dean", "hod", "cic"}
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Admin / Registrar / Dean / HOD / CIC role required",
+        )
+    payload = await compute_section_detail(db, section_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Section not found")
+    return payload
 
 
 @router.get("/assignments", response_model=list[AssignmentOut])

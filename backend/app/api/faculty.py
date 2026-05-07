@@ -42,6 +42,7 @@ async def get_schedule(
                 ClassSchedule.start_time,
                 ClassSchedule.end_time,
                 ClassSchedule.room,
+                Section.room,  # default classroom per row (faculty rotates)
                 Subject.code,
                 Subject.name,
                 Section.year,
@@ -76,6 +77,7 @@ async def get_schedule(
         start,
         end,
         room,
+        section_room,
         code,
         sub_name,
         year,
@@ -90,7 +92,10 @@ async def get_schedule(
                 assignment_id=assignment_id,
                 start_time=start,
                 end_time=end,
-                room=room,
+                # class_schedules.room is null for theory in the section's
+                # own classroom — fall back to Section.room (faculty rotates
+                # between classrooms across sections).
+                room=room or section_room or "—",
                 subject_code=code,
                 subject_name=sub_name,
                 section_year=year,

@@ -64,6 +64,7 @@ export function CreateUserModal({
     full_name: "",
     phone: "",
     role: "faculty",
+    temp_password: "",
     provision: true,
   });
   const [submitting, setSubmitting] = useState(false);
@@ -100,6 +101,7 @@ export function CreateUserModal({
       full_name: form.full_name,
       phone: form.phone,
       role,
+      temp_password: form.temp_password,
       provision: form.provision,
     });
   }
@@ -136,6 +138,14 @@ export function CreateUserModal({
       }
       if (!form.admitted_year) {
         setError("Student requires admitted year");
+        return;
+      }
+    }
+    if (form.provision !== false) {
+      // Provisioning is on → temp_password is required so the new user has
+      // something to log in with. The backend re-validates this.
+      if (!form.temp_password || form.temp_password.length < 8) {
+        setError("Temporary password must be at least 8 characters");
         return;
       }
     }
@@ -312,14 +322,37 @@ export function CreateUserModal({
           </div>
         )}
 
+        {form.provision !== false && (
+          <div className="border-t border-white/70 pt-3">
+            <label className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-muted block mb-1">
+              Temporary password *
+            </label>
+            <input
+              type="text"
+              value={form.temp_password ?? ""}
+              onChange={(e) => update("temp_password", e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-white/60 border border-white/70 text-sm font-mono"
+              placeholder="At least 8 characters"
+              minLength={8}
+              required
+              autoComplete="off"
+            />
+            <p className="text-[11px] text-muted mt-1">
+              Share this with the user — they&rsquo;ll be required to choose a
+              new password on their first login.
+            </p>
+          </div>
+        )}
+
         <label className="flex items-center gap-2 text-xs text-muted">
           <input
             type="checkbox"
-            checked={form.provision ?? true}
+            checked={form.provision !== false}
             onChange={(e) => update("provision", e.target.checked)}
           />
-          Generate password and create login now (recommended). When unchecked
-          the user is added but you must onboard them later from the pending list.
+          Create login now using the temp password above (recommended). When
+          unchecked the user is added but you must onboard them later from
+          the pending list.
         </label>
 
         {error && <p className="text-bad text-xs">{error}</p>}

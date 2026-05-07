@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import CurrentUser, get_current_user
 from app.core.database import get_db
-from app.models.academic import ClassSchedule, Subject, SubjectAssignment
+from app.models.academic import ClassSchedule, Section, Subject, SubjectAssignment
 from app.models.attendance import AttendanceRecord, AttendanceSession
 from app.models.user import FacultyMember, Student, User
 from app.schemas.common import StudentScheduleItem, StudentSummary
@@ -72,6 +72,13 @@ async def get_schedule(
     today = date.today()
     py_dow = today.weekday()  # Mon=0, Sun=6 (already correct)
 
+    # Section's default classroom — used when class_schedules.room is null
+    # (theory classes; labs always set their own room override).
+    section = (
+        await db.execute(select(Section).where(Section.id == student.section_id))
+    ).scalar_one()
+    default_room = section.room or "—"
+
     rows = (
         await db.execute(
             select(
@@ -121,7 +128,9 @@ async def get_schedule(
                 assignment_id=assignment_id,
                 start_time=start,
                 end_time=end,
-                room=room,
+                # class_schedules.room is null for theory classes that run
+                # in the section's default classroom — fall back to that.
+                room=room or default_room,
                 subject_code=code,
                 subject_name=name,
                 faculty_name=faculty_name,

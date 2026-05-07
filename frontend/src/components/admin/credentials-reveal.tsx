@@ -54,7 +54,8 @@ export function CredentialsReveal({ title, rows, onDismiss }: Props) {
           <h3 className="font-bold">{title}</h3>
           <p className="text-xs text-amber font-semibold mt-1">
             ⚠ Capture these passwords now — they are not stored and cannot be
-            shown again. Share securely with each user.
+            shown again. Each user will be required to choose a new password
+            on their first login.
           </p>
         </div>
         <div className="flex gap-2">

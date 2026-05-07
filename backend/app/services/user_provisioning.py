@@ -130,12 +130,20 @@ async def provision_user(
     db: AsyncSession,
     user_id: UUID,
     auth_index: dict[str, UUID] | None = None,
+    password_override: str | None = None,
+    require_password_reset: bool = True,
 ) -> ProvisionResult:
     """Onboard a single public.users row.
 
-    `auth_index` is an optional pre-fetched {email: gotrue_id} map used
-    when provisioning many users in one request — avoids re-paginating
-    gotrue for every call. If omitted, we fetch a fresh map.
+    Args:
+      auth_index: pre-fetched {email: gotrue_id} map used when provisioning
+        many users in one request — avoids re-paginating gotrue per call.
+      password_override: explicit password to set in gotrue. When None, we
+        generate a random 10-char one. Either way the password is treated
+        as a temporary credential.
+      require_password_reset: when True (the default), flips
+        users.password_reset_required so the next login is bounced to the
+        forced-reset page.
     """
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user:
@@ -158,7 +166,7 @@ async def provision_user(
             status="already_provisioned",
         )
 
-    password = generate_password(10)
+    password = password_override or generate_password(10)
 
     try:
         # Either creates a new gotrue user or updates the password of the
@@ -174,8 +182,12 @@ async def provision_user(
             error=f"gotrue: {e}",
         )
 
-    # If the public.users.id already matches gotrue, no rebind needed.
+    # If the public.users.id already matches gotrue, no rebind needed —
+    # but we still need to flip the password_reset flag on the existing row.
     if user.id == gotrue_id:
+        if require_password_reset:
+            user.password_reset_required = True
+            await db.flush()
         return ProvisionResult(
             user_id=user.id,
             email=user.email,
@@ -184,8 +196,12 @@ async def provision_user(
             status="ok",
         )
 
-    # Rebind FKs so login by JWT sub finds the row.
+    # Rebind FKs so login by JWT sub finds the row, then stamp the flag on
+    # the freshly-inserted user row.
     new_user = await _rebind_user_id(db, user, gotrue_id)
+    if require_password_reset:
+        new_user.password_reset_required = True
+        await db.flush()
     return ProvisionResult(
         user_id=new_user.id,
         email=new_user.email,

@@ -27,7 +27,6 @@ from app.models.user import FacultyMember, Student, User, UserRole
 from app.services.gotrue_admin import list_auth_users
 from app.services.user_provisioning import (
     ProvisionResult,
-    generate_password,
     provision_user,
 )
 
@@ -265,9 +264,15 @@ class CreateUserRequest(BaseModel):
     enrollment_no: str | None = None
     admitted_year: int | None = None
 
-    # If true, create gotrue auth account and return generated password.
-    # When false, only the public.users row + role are created (admin can
-    # onboard later from the pending list).
+    # Admin-supplied temp password (required when provision=True). The user
+    # is forced to change it on first login via password_reset_required flag.
+    # gotrue's default minimum is 6 chars; we enforce a slightly stricter
+    # client-friendly minimum here.
+    temp_password: str | None = Field(default=None, min_length=8, max_length=72)
+
+    # If true, create gotrue auth account using temp_password. When false,
+    # only the public.users row + role are created (admin can onboard later
+    # from the pending list).
     provision: bool = True
 
 
@@ -324,8 +329,18 @@ async def create_user(
     also flips the section's `cic_user_id` so dashboards reflect ownership.
     For role=faculty/student, the corresponding entity row is created in
     addition to the user_role assignment.
+
+    When `provision=True`, `temp_password` is required — admin types it in,
+    we use it verbatim, and flag the user so the next login is bounced to
+    the forced-reset page.
     """
     scope_type, scope_id = _validate_role_payload(body)
+
+    if body.provision and not body.temp_password:
+        raise HTTPException(
+            status_code=400,
+            detail="temp_password is required when provision=True",
+        )
 
     # Resolve dept_id for faculty (since it lives on FacultyMember, not just role)
     dept_id = body.department_id
@@ -402,12 +417,20 @@ async def create_user(
 
     # Optionally provision the auth account immediately. This rebinds the
     # user.id to the gotrue UUID, so we re-read user_id from the result.
+    # The admin-supplied temp_password is set in gotrue verbatim, and
+    # password_reset_required=True so first login is forced through the
+    # reset page.
     password: str | None = None
     final_user_id = new_id
     if body.provision:
         # Pre-flush so the row is visible to the provisioning lookup.
         await db.flush()
-        result = await provision_user(db, new_id)
+        result = await provision_user(
+            db,
+            new_id,
+            password_override=body.temp_password,
+            require_password_reset=True,
+        )
         if result.status == "error":
             await db.rollback()
             raise HTTPException(
@@ -416,10 +439,6 @@ async def create_user(
             )
         password = result.password
         final_user_id = result.user_id
-    else:
-        # Generate a placeholder hint password but DON'T set it — admin can
-        # decide later. We just leave the field null.
-        _ = generate_password  # silence unused-import in this branch
 
     await db.commit()
 

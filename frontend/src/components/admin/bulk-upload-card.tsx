@@ -17,7 +17,8 @@ export type UploadType =
   | "faculty"
   | "subjects"
   | "students"
-  | "assignments";
+  | "assignments"
+  | "timetable";
 
 interface BulkUploadCardProps {
   type: UploadType;
