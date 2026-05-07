@@ -25,11 +25,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      supabase-auth:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/attendance
       SUPABASE_URL: http://supabase-kong:8000
       SUPABASE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
       CORS_ORIGINS: '["http://localhost:3000","http://frontend:3000"]'
+      # Backend admin endpoints talk to gotrue directly (creating auth users
+      # during onboarding, listing them for the pending diff). Inside Docker
+      # the gotrue service is reachable by container name, NOT localhost —
+      # without this override gotrue_admin.py falls back to localhost:9999
+      # which from inside the backend container is the backend itself.
+      GOTRUE_URL: http://supabase-auth:9999
+      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
   frontend:
     build:
